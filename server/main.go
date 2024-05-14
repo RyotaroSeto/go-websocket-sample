@@ -1,44 +1,37 @@
 package main
 
 import (
-    "fmt"
-    "log"
-    "net/http"
+	"log"
+	"net/http"
 
-    "github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 )
 
 func main() {
-    // ハンドラー関数
-    upgrader := websocket.Upgrader{}
-    handler := func(w http.ResponseWriter, r *http.Request) {
-        // HTTP接続をWebSocket接続にアップグレード
-        conn, err := upgrader.Upgrade(w, r, nil)
-        if err != nil {
-            log.Print(err)
-            return
-        }
-        defer conn.Close()
+	handler := newHandler(websocket.Upgrader{})
+	http.HandleFunc("/ws", handler)
 
-        // クライアントからのメッセージをループで受信
-        for {
-            mt, message, err := conn.ReadMessage()
-            if err != nil {
-                log.Print(err)
-                break
-            }
-            log.Printf("メッセージの種類: %d, メッセージ: %s\n", mt, message)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
 
-            // クライアントにメッセージを送信
-            err = conn.WriteMessage(mt, message)
-            if err != nil {
-                log.Print(err)
-                break
-            }
-        }
-    }
+func newHandler(upgrader websocket.Upgrader) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
 
-    // HTTPサーバーを起動
-    http.HandleFunc("/ws", handler)
-    log.Fatal(http.ListenAndServe(":8080", nil))
+		for {
+			mt, message, err := conn.ReadMessage()
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Printf("メッセージの種類: %d, メッセージ: %s\n", mt, message)
+
+			if err = conn.WriteMessage(mt, message); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 }
